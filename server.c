@@ -4,7 +4,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#define PORT 8080
+#define PORT 9000
 int main(int argc, char const* argv[])
 {
     int server_fd, new_socket;
@@ -23,11 +23,15 @@ int main(int argc, char const* argv[])
 
     // Forcefully attaching socket to the port 8080
     if (setsockopt(server_fd, SOL_SOCKET,
-                   SO_REUSEADDR | SO_REUSEPORT, &opt,
+                   SO_REUSEADDR , &opt,
                    sizeof(opt))) {
         perror("setsockopt");
         exit(EXIT_FAILURE);
     }
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0) {
+    perror("setsockopt SO_REUSEPORT");
+    exit(EXIT_FAILURE);
+}
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);

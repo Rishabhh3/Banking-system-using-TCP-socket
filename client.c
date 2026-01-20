@@ -3,7 +3,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#define PORT 8080
+#define PORT 9000
 
 int main(int argc, char const* argv[])
 {
