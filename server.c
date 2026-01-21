@@ -6,26 +6,110 @@
 #include "common/protocol.h"
 #include "common/logger.h"
 
-// --- HELPER: Get Current Balance ---
+// --- HELPER FUNCTION: Get Current Balance (Robust Version) ---
 int get_current_balance(char *username) {
-    char filename[100];
+    char filename[256];
+    // Ensure we construct the path exactly as expected
     sprintf(filename, "database/customers/%s.txt", username);
-    FILE *fp = fopen(filename, "r");
-    if (!fp) return -1; // File not found
+    
+    printf("[DEBUG] Looking for file: %s\n", filename); // DEBUG 1
 
-    int bal = 0;
-    char line[100];
-    char trans[50];
+    FILE *fp = fopen(filename, "r");
+    if (!fp) {
+        printf("[ERROR] File NOT found! Check if '%s' exists inside 'database/customers/'.\n", filename);
+        // Also print current working directory to help debug
+        char cwd[256];
+        if (getcwd(cwd, sizeof(cwd)) != NULL) {
+            printf("[DEBUG] Server Current Directory: %s\n", cwd);
+        }
+        return -1; 
+    }
+
+    int bal = -2; // Start with -2 to indicate "File found but no balance read yet"
+    char line[256];
+    char trans[100];
     int amt, temp_bal;
 
-    // Read every line; the last valid balance found is the current one
     while (fgets(line, sizeof(line), fp)) {
-        // Parse: TransactionName Amount Balance
-        sscanf(line, "%s %d %d", trans, &amt, &temp_bal);
-        bal = temp_bal;
+        // Strip newline characters for cleaner printing
+        line[strcspn(line, "\r\n")] = 0; 
+        
+        printf("[DEBUG] Reading Line: '%s'\n", line); // DEBUG 2
+
+        // Try to parse: String Integer Integer
+        if (sscanf(line, "%s %d %d", trans, &amt, &temp_bal) == 3) {
+            bal = temp_bal;
+            printf("[DEBUG] Parsed Balance: %d\n", bal); // DEBUG 3
+        } else {
+            printf("[DEBUG] Skipped line (format mismatch)\n");
+        }
     }
     fclose(fp);
+    
+    if (bal == -2) {
+        printf("[ERROR] File was empty or format was wrong.\n");
+        return 0; // Default to 0 if file exists but is empty
+    }
+    
     return bal;
+}
+
+// --- HANDLER: View Balance ---
+void handle_balance(int client_sock, Message msg) {
+    Message response;
+    memset(&response, 0, sizeof(response));
+
+    printf("[DEBUG] Handling Balance Request for User: %s\n", msg.username);
+
+    int bal = get_current_balance(msg.username);
+    
+    if (bal == -1) {
+        response.type = MSG_ERROR;
+        strcpy(response.data, "Error: Account file not found.");
+    } else {
+        response.type = MSG_SUCCESS;
+        // Format the string clearly
+        sprintf(response.data, "Current Balance: Rs. %d", bal);
+    }
+    
+    send(client_sock, &response, sizeof(response), 0);
+}
+
+// --- HANDLER: Mini Statement ---
+void handle_mini_statement(int client_sock, Message msg) {
+    Message response;
+    memset(&response, 0, sizeof(response));
+
+    char filename[100];
+    sprintf(filename, "database/customers/%s.txt", msg.username);
+    FILE *fp = fopen(filename, "r");
+
+    if (!fp) {
+        response.type = MSG_ERROR;
+        strcpy(response.data, "Error: History not available.");
+        send(client_sock, &response, sizeof(response), 0);
+        return;
+    }
+
+    // We will read all lines and keep the last 10
+    char lines[100][100]; // Store up to 100 lines temporarily
+    int count = 0;
+    
+    while (fgets(lines[count], sizeof(lines[0]), fp) && count < 100) {
+        count++;
+    }
+    fclose(fp);
+
+    // Prepare the response (Last 5 transactions)
+    strcpy(response.data, "--- MINI STATEMENT ---\n");
+    
+    int start = (count > 5) ? (count - 5) : 0; // Determine where to start
+    for (int i = start; i < count; i++) {
+        strcat(response.data, lines[i]); // Append line to message
+    }
+
+    response.type = MSG_SUCCESS;
+    send(client_sock, &response, sizeof(response), 0);
 }
 
 // --- HANDLER: Registration ---
@@ -156,9 +240,8 @@ void handle_transaction(int client_sock, Message msg) {
 // --- MAIN LOOP ---
 void process_client(int client_sock) {
     Message msg;
-    // We loop here to allow multiple transactions in one session
     while (recv(client_sock, &msg, sizeof(msg), 0) > 0) {
-        printf("Received Request Type: %d from %s\n", msg.type, msg.username);
+        printf("[DEBUG] Received Request Type: %d from %s\n", msg.type, msg.username);
 
         switch (msg.type) {
             case MSG_REGISTER:
@@ -171,7 +254,18 @@ void process_client(int client_sock) {
             case MSG_WITHDRAW:
                 handle_transaction(client_sock, msg);
                 break;
+            
+            // --- DID YOU MISS THESE LINES? ---
+            case MSG_BALANCE:
+                handle_balance(client_sock, msg);
+                break;
+            case MSG_MINI_STATEMENT:
+                handle_mini_statement(client_sock, msg);
+                break;
+            // ---------------------------------
+
             default:
+                printf("[DEBUG] Unknown Request Type: %d\n", msg.type);
                 break;
         }
     }

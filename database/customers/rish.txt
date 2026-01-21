@@ -1,3 +1,2 @@
-Account_Opened 1000 1000
-Deposit 23423 24423
-Withdrawal 2432 21991
+Account_Opened 800 800
+Deposit 709 1509

@@ -7,16 +7,17 @@
 #define MSG_BALANCE  3
 #define MSG_DEPOSIT  4
 #define MSG_WITHDRAW 5
+#define MSG_MINI_STATEMENT 6 
 #define MSG_ERROR    -1
 #define MSG_SUCCESS  100
 
 typedef struct {
-    int type;           // What action to take?
+    int type;           
     char username[50];
     char password[50];
-    char role;          // 'C', 'A', 'P'
-    int amount;         // For transactions/opening balance
-    char data[256];     // For server responses (messages)
+    char role;          
+    int amount;         
+    char data[1024];    
 } Message;
 
 #endif

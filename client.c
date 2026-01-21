@@ -15,34 +15,38 @@ void customer_menu(char *username) {
         printf("\n--- CUSTOMER MENU (%s) ---\n", username);
         printf("1. Deposit Money\n");
         printf("2. Withdraw Money\n");
-        printf("3. Logout\n");
+        printf("3. View Balance\n");         // <--- NEW
+        printf("4. Mini Statement\n");       // <--- NEW
+        printf("5. Logout\n");
         printf("Choice: ");
         scanf("%d", &choice);
 
-        if (choice == 3) break;
+        if (choice == 5) break;
 
         memset(&msg, 0, sizeof(msg));
         strcpy(msg.username, username);
 
+        // Map choice to Message Type
         if (choice == 1) {
             msg.type = MSG_DEPOSIT;
-            printf("Enter Amount to Deposit: ");
-            scanf("%d", &msg.amount);
+            printf("Amount: "); scanf("%d", &msg.amount);
         } else if (choice == 2) {
             msg.type = MSG_WITHDRAW;
-            printf("Enter Amount to Withdraw: ");
-            scanf("%d", &msg.amount);
+            printf("Amount: "); scanf("%d", &msg.amount);
+        } else if (choice == 3) {
+            msg.type = MSG_BALANCE;          // <--- Type 3
+        } else if (choice == 4) {
+            msg.type = MSG_MINI_STATEMENT;   // <--- Type 6
         } else {
             printf("Invalid choice.\n");
             continue;
         }
 
-        // Send Request
         send(sock, &msg, sizeof(msg), 0);
-
-        // Get Response
         recv(sock, &response, sizeof(response), 0);
-        printf("\nSERVER RESPONSE: %s\n", response.data);
+        
+        // Print the result
+        printf("\nSERVER:\n%s\n", response.data);
     }
 }
 
