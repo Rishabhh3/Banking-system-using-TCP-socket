@@ -1,0 +1,25 @@
+# --- Executables ---
+server
+client
+db_setup
+logger_test
+
+# --- C Compiled Objects ---
+*.o
+*.out
+*.exe
+
+# --- Logs ---
+# Ignore all logs, but keep the folder itself
+logs/*
+!logs/.gitkeep
+
+# --- Database & Local Data ---
+# You usually don't want to commit your test users/passwords!
+database/login.txt
+database/server_log.txt
+database/customers/*.txt
+
+# --- OS Generated Files ---
+.DS_Store
+Thumbs.db

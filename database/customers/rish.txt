@@ -1,2 +1,0 @@
-Account_Opened 800 800
-Deposit 709 1509
