@@ -2,11 +2,11 @@
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
-#include "logger.h" // Include the header to match the definition
+#include "logger.h"
 
 void write_log(const char *message) {
     FILE *fp = fopen("logs/server_log.txt", "a");
-    if (fp == NULL) return;
+    if (fp == NULL) return; // if unable to find the file
 
     time_t now;
     time(&now);

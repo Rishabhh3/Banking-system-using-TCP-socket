@@ -7,17 +7,18 @@
 #define MSG_BALANCE  3
 #define MSG_DEPOSIT  4
 #define MSG_WITHDRAW 5
-#define MSG_MINI_STATEMENT 6 
+#define MSG_MINI_STATEMENT 6
 #define MSG_ERROR    -1
 #define MSG_SUCCESS  100
 
 typedef struct {
     int type;           
-    char username[50];
+    char username[50];       // Sender (e.g., admin1 or user1)
     char password[50];
-    char role;          
+    char role;               // 'C', 'A', 'P'
     int amount;         
-    char data[1024];    
+    char data[1024];         // Large buffer for Mini Statements
+    char target_username[50]; // NEW: For Admin to target specific users
 } Message;
 
 #endif

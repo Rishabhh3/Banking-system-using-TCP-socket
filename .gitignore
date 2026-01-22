@@ -15,7 +15,6 @@ logs/*
 !logs/.gitkeep
 
 # --- Database & Local Data ---
-# You usually don't want to commit your test users/passwords!
 database/login.txt
 database/server_log.txt
 database/customers/*.txt

@@ -5,126 +5,122 @@
 #include <arpa/inet.h>
 #include "common/protocol.h"
 
-int sock; // Global socket for simplicity in this menu
+int sock;
+
+// --- SHARED HELPER: Send & Print ---
+void send_request(Message msg) {
+    Message response;
+    send(sock, &msg, sizeof(msg), 0);
+    recv(sock, &response, sizeof(response), 0);
+    printf("\n[SERVER]: %s\n", response.data);
+}
 
 void customer_menu(char *username) {
     int choice;
-    Message msg, response;
-
     while (1) {
-        printf("\n--- CUSTOMER MENU (%s) ---\n", username);
-        printf("1. Deposit Money\n");
-        printf("2. Withdraw Money\n");
-        printf("3. View Balance\n");         // <--- NEW
-        printf("4. Mini Statement\n");       // <--- NEW
-        printf("5. Logout\n");
-        printf("Choice: ");
-        scanf("%d", &choice);
+        Message msg = {0};
+        strcpy(msg.username, username);
+        msg.role = 'C';
 
+        printf("\n--- CUSTOMER MENU ---\n1. Deposit\n2. Withdraw\n3. Balance\n4. Statement\n5. Logout\nChoice: ");
+        scanf("%d", &choice);
         if (choice == 5) break;
 
-        memset(&msg, 0, sizeof(msg));
-        strcpy(msg.username, username);
-
-        // Map choice to Message Type
-        if (choice == 1) {
-            msg.type = MSG_DEPOSIT;
+        if (choice == 1 || choice == 2) {
+            msg.type = (choice == 1) ? MSG_DEPOSIT : MSG_WITHDRAW;
             printf("Amount: "); scanf("%d", &msg.amount);
-        } else if (choice == 2) {
-            msg.type = MSG_WITHDRAW;
-            printf("Amount: "); scanf("%d", &msg.amount);
-        } else if (choice == 3) {
-            msg.type = MSG_BALANCE;          // <--- Type 3
-        } else if (choice == 4) {
-            msg.type = MSG_MINI_STATEMENT;   // <--- Type 6
-        } else {
-            printf("Invalid choice.\n");
-            continue;
-        }
-
-        send(sock, &msg, sizeof(msg), 0);
-        recv(sock, &response, sizeof(response), 0);
+        } else if (choice == 3) msg.type = MSG_BALANCE;
+        else if (choice == 4) msg.type = MSG_MINI_STATEMENT;
         
-        // Print the result
-        printf("\nSERVER:\n%s\n", response.data);
+        send_request(msg);
     }
 }
 
-void login_user() {
-    Message msg, response;
-    msg.type = MSG_LOGIN;
+void admin_menu(char *username) {
+    int choice;
+    while (1) {
+        Message msg = {0};
+        strcpy(msg.username, username);
+        msg.role = 'A';
 
-    printf("\n--- USER LOGIN ---\n");
-    printf("Username: ");
-    scanf("%s", msg.username);
-    printf("Password: ");
-    scanf("%s", msg.password);
+        printf("\n--- ADMIN MENU ---\n1. Credit User\n2. Debit User\n3. Logout\nChoice: ");
+        scanf("%d", &choice);
+        if (choice == 3) break;
 
-    send(sock, &msg, sizeof(msg), 0);
-    recv(sock, &response, sizeof(response), 0);
+        printf("Enter Customer Username: ");
+        scanf("%s", msg.target_username);
+        printf("Amount: ");
+        scanf("%d", &msg.amount);
 
-    if (response.type == MSG_SUCCESS) {
-        printf("Login Successful! (Role: %c)\n", response.role);
-        if (response.role == 'C') {
-            customer_menu(msg.username);
-        } else {
-            printf("Admin/Police menus not implemented yet.\n");
-        }
-    } else {
-        printf("Login Failed: %s\n", response.data);
+        msg.type = (choice == 1) ? MSG_DEPOSIT : MSG_WITHDRAW;
+        send_request(msg);
     }
 }
 
-void register_user() {
-    Message msg, response;
-    msg.type = MSG_REGISTER;
-    msg.role = 'C'; 
+void police_menu(char *username) {
+    int choice;
+    while (1) {
+        Message msg = {0};
+        strcpy(msg.username, username);
+        msg.role = 'P';
 
-    printf("\n--- NEW REGISTRATION ---\n");
-    printf("Username: ");
-    scanf("%s", msg.username);
-    printf("Password: ");
-    scanf("%s", msg.password);
-    printf("Initial Deposit: ");
-    scanf("%d", &msg.amount);
+        printf("\n--- POLICE MENU ---\n1. Check User Balance\n2. Check User Statement\n3. Logout\nChoice: ");
+        scanf("%d", &choice);
+        if (choice == 3) break;
 
-    send(sock, &msg, sizeof(msg), 0);
-    recv(sock, &response, sizeof(response), 0);
-    printf("Server: %s\n", response.data);
+        printf("Enter Customer Username to Inspect: ");
+        scanf("%s", msg.target_username);
+
+        msg.type = (choice == 1) ? MSG_BALANCE : MSG_MINI_STATEMENT;
+        send_request(msg);
+    }
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        printf("Usage: %s <IP> <Port>\n", argv[0]);
-        exit(1);
-    }
+    if (argc != 3) { printf("Usage: %s <IP> <Port>\n", argv[0]); exit(1); }
 
-    struct sockaddr_in server_addr;
+    struct sockaddr_in addr = {0};
     sock = socket(AF_INET, SOCK_STREAM, 0);
-    
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(atoi(argv[2]));
-    inet_pton(AF_INET, argv[1], &server_addr.sin_addr);
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(atoi(argv[2]));
+    inet_pton(AF_INET, argv[1], &addr.sin_addr);  // Converting the IP string
 
-    if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Connection Failed");
-        exit(1);
+    if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        perror("Connect Error"); exit(1);
     }
 
     int choice;
     while(1) {
-        printf("\n=== BANKING SYSTEM ===\n");
-        printf("1. New User (Register)\n");
-        printf("2. Existing User (Login)\n");
-        printf("3. Exit\n");
-        printf("Choice: ");
+        printf("\n=== BANK SYSTEM ===\n1. Register (New)\n2. Login (Existing)\n3. Exit\nChoice: ");
         scanf("%d", &choice);
+        if (choice == 3) break;
 
-        if (choice == 1) register_user();
-        else if (choice == 2) login_user();
-        else break;
+        Message msg = {0}, response;
+        if (choice == 1) {
+            msg.type = MSG_REGISTER;
+            printf("Role (C/A/P): "); scanf(" %c", &msg.role);
+            printf("Username: "); scanf("%s", msg.username);
+            printf("Password: "); scanf("%s", msg.password);
+            if(msg.role == 'C') { printf("Initial Deposit: "); scanf("%d", &msg.amount); }
+            send_request(msg);
+        } else if (choice == 2) {
+            msg.type = MSG_LOGIN;
+            printf("Username: "); scanf("%s", msg.username);
+            printf("Password: "); scanf("%s", msg.password);
+            
+            send(sock, &msg, sizeof(msg), 0);
+            recv(sock, &response, sizeof(response), 0);
+            
+            if (response.type == MSG_SUCCESS) {
+                printf("Login Success! Role: %c\n", response.role);
+                if (response.role == 'C') customer_menu(msg.username);
+                else if (response.role == 'A') admin_menu(msg.username);
+                else if (response.role == 'P') police_menu(msg.username);
+            } else {
+                printf("Error: %s\n", response.data);
+            }
+        }
     }
-
     close(sock);
     return 0;
 }

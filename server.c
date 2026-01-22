@@ -6,123 +6,48 @@
 #include "common/protocol.h"
 #include "common/logger.h"
 
-// --- HELPER FUNCTION: Get Current Balance (Robust Version) ---
+// we send the client socket everywhere as it is the FD, that is server assigning unique no. to client,
+// without it the server know what to say but to whom?
+// we also have to send size because &reponse give it the address but it doesnot know it has to read till
+// how many blocks in memory so size is given so that it reads only upto where the data is present and not some
+// random values
+
+// printf = print to terminal
+// fprintf = print in a file in your system
+// sprintf = string variable, otherwise char abc[10] = "asdsf", but i want to store it as string so use
+// sprintf, it will store the string in the variable you give it
+
+// --- HELPER: Get Balance ---
 int get_current_balance(char *username) {
-    char filename[256];
-    // Ensure we construct the path exactly as expected
+    char filename[100];
     sprintf(filename, "database/customers/%s.txt", username);
-    
-    printf("[DEBUG] Looking for file: %s\n", filename); // DEBUG 1
-
     FILE *fp = fopen(filename, "r");
-    if (!fp) {
-        printf("[ERROR] File NOT found! Check if '%s' exists inside 'database/customers/'.\n", filename);
-        // Also print current working directory to help debug
-        char cwd[256];
-        if (getcwd(cwd, sizeof(cwd)) != NULL) {
-            printf("[DEBUG] Server Current Directory: %s\n", cwd);
-        }
-        return -1; 
-    }
+    if (!fp) return -1; 
 
-    int bal = -2; // Start with -2 to indicate "File found but no balance read yet"
-    char line[256];
-    char trans[100];
-    int amt, temp_bal;
-
-    while (fgets(line, sizeof(line), fp)) {
-        // Strip newline characters for cleaner printing
-        line[strcspn(line, "\r\n")] = 0; 
-        
-        printf("[DEBUG] Reading Line: '%s'\n", line); // DEBUG 2
-
-        // Try to parse: String Integer Integer
-        if (sscanf(line, "%s %d %d", trans, &amt, &temp_bal) == 3) {
-            bal = temp_bal;
-            printf("[DEBUG] Parsed Balance: %d\n", bal); // DEBUG 3
-        } else {
-            printf("[DEBUG] Skipped line (format mismatch)\n");
-        }
+    int bal = 0, amt, temp_bal;// amt =trans amnt, temp = bal at current time, bal = final balance
+    char line[256], trans[50]; 
+    // line = temp buffer to store full line of code, trans holds the word credit or debit
+    
+    // Read to the last line to get current balance
+    while (fgets(line, sizeof(line), fp)) { // this reads one line and stores it in line
+        if (sscanf(line, "%s %d %d", trans, &amt, &temp_bal) == 3) bal = temp_bal;
+        // = 3 means did you succesfully get all the features
+        // it places the the 3 feautres in trans, amt, temp_bal in order and their type is mentioned
     }
     fclose(fp);
-    
-    if (bal == -2) {
-        printf("[ERROR] File was empty or format was wrong.\n");
-        return 0; // Default to 0 if file exists but is empty
-    }
-    
     return bal;
 }
 
-// --- HANDLER: View Balance ---
-void handle_balance(int client_sock, Message msg) {
-    Message response;
-    memset(&response, 0, sizeof(response));
-
-    printf("[DEBUG] Handling Balance Request for User: %s\n", msg.username);
-
-    int bal = get_current_balance(msg.username);
-    
-    if (bal == -1) {
-        response.type = MSG_ERROR;
-        strcpy(response.data, "Error: Account file not found.");
-    } else {
-        response.type = MSG_SUCCESS;
-        // Format the string clearly
-        sprintf(response.data, "Current Balance: Rs. %d", bal);
-    }
-    
-    send(client_sock, &response, sizeof(response), 0);
-}
-
-// --- HANDLER: Mini Statement ---
-void handle_mini_statement(int client_sock, Message msg) {
-    Message response;
-    memset(&response, 0, sizeof(response));
-
-    char filename[100];
-    sprintf(filename, "database/customers/%s.txt", msg.username);
-    FILE *fp = fopen(filename, "r");
-
-    if (!fp) {
-        response.type = MSG_ERROR;
-        strcpy(response.data, "Error: History not available.");
-        send(client_sock, &response, sizeof(response), 0);
-        return;
-    }
-
-    // We will read all lines and keep the last 10
-    char lines[100][100]; // Store up to 100 lines temporarily
-    int count = 0;
-    
-    while (fgets(lines[count], sizeof(lines[0]), fp) && count < 100) {
-        count++;
-    }
-    fclose(fp);
-
-    // Prepare the response (Last 5 transactions)
-    strcpy(response.data, "--- MINI STATEMENT ---\n");
-    
-    int start = (count > 5) ? (count - 5) : 0; // Determine where to start
-    for (int i = start; i < count; i++) {
-        strcat(response.data, lines[i]); // Append line to message
-    }
-
-    response.type = MSG_SUCCESS;
-    send(client_sock, &response, sizeof(response), 0);
-}
-
-// --- HANDLER: Registration ---
+// --- HANDLER: Registration (new user) ---
 void handle_register(int client_sock, Message msg) {
-    Message response; 
-    memset(&response, 0, sizeof(response));
-
-    // Check if user exists
-    FILE *fp = fopen("database/login.txt", "r");
+    Message response = {0}; // Clear memory
+    
+    // Check if user exists in login.txt
+    FILE *fp = fopen("database/login.txt", "r"); // r = read, a = append
     char u[50], p[50], r;
     int exists = 0;
     if (fp) {
-        while (fscanf(fp, "%s %s %c", u, p, &r) != EOF) {
+        while (fscanf(fp, "%s %s %c", u, p, &r) != EOF) { // END OF FILE
             if (strcmp(u, msg.username) == 0) exists = 1;
         }
         fclose(fp);
@@ -132,72 +57,104 @@ void handle_register(int client_sock, Message msg) {
         response.type = MSG_ERROR;
         strcpy(response.data, "Error: Username already exists.");
     } else {
-        // Save to login.txt
+        // 1. Add to login.txt
         fp = fopen("database/login.txt", "a");
         fprintf(fp, "%s %s %c\n", msg.username, msg.password, msg.role);
         fclose(fp);
 
-        // Create Account File
+        // 2. Create File (Customers only)
         if (msg.role == 'C') {
             char filename[100];
             sprintf(filename, "database/customers/%s.txt", msg.username);
+            //sprintf: Writes formatted text into a string variable.
             fp = fopen(filename, "w");
             fprintf(fp, "Account_Opened %d %d\n", msg.amount, msg.amount);
             fclose(fp);
         }
         response.type = MSG_SUCCESS;
+        // response.data = "abd" = ERROR
         strcpy(response.data, "Registration Successful.");
+        // you cannot write name = "RIshabh", in c , you use strcpy as it reads R then store it, then it read i then store like this it happens
         write_log("New User Registered.");
     }
-    send(client_sock, &response, sizeof(response), 0);
+    send(client_sock, &response, sizeof(response), 0); // we tell the client whether it was success or failure
 }
 
 // --- HANDLER: Login ---
 void handle_login(int client_sock, Message msg) {
-    Message response;
-    memset(&response, 0, sizeof(response));
-    
+    Message response = {0};
     FILE *fp = fopen("database/login.txt", "r");
     char u[50], p[50], r;
-    int authenticated = 0;
+    int success = 0;
 
     if (fp) {
         while (fscanf(fp, "%s %s %c", u, p, &r) != EOF) {
-            // Check matching Username AND Password
             if (strcmp(u, msg.username) == 0 && strcmp(p, msg.password) == 0) {
-                authenticated = 1;
-                response.role = r; // Send role back to client
+                success = 1;
+                response.role = r;
                 break;
             }
         }
         fclose(fp);
     }
 
-    if (authenticated) {
+    if (success) {
         response.type = MSG_SUCCESS;
         strcpy(response.data, "Login Successful.");
-        
-        char log_msg[100];
-        sprintf(log_msg, "User logged in: %s", msg.username);
-        write_log(log_msg);
+        char log[100]; sprintf(log, "User logged in: %s", msg.username); write_log(log);
     } else {
         response.type = MSG_ERROR;
-        strcpy(response.data, "Invalid Username or Password.");
-        write_log("Failed login attempt.");
+        strcpy(response.data, "Invalid Credentials.");
     }
+    send(client_sock, &response, sizeof(response), 0);
+    // this tell me it has to be sent to which client
+}
+
+// --- HANDLER: Balance & Mini Statement (Unified) ---
+// Handles: Customer viewing own data OR Police/Admin viewing others
+void handle_info(int client_sock, Message msg) {
+    Message response = {0};
+    
+    // DECISION: Whose file do we look at?
+    // If Admin/Police, use target_username. If Customer, use username.
+    char *target = (msg.role == 'C') ? msg.username : msg.target_username;
+
+    if (msg.type == MSG_BALANCE) {
+        int bal = get_current_balance(target);
+        if (bal == -1) strcpy(response.data, "User not found.");
+        else sprintf(response.data, "Balance for %s: %d", target, bal);
+        
+    } else if (msg.type == MSG_MINI_STATEMENT) {
+        char filename[100];
+        sprintf(filename, "database/customers/%s.txt", target);// because filename = ...  is an error
+        FILE *fp = fopen(filename, "r");
+        if (!fp) {
+            strcpy(response.data, "History not found.");
+        } else {
+            char line[200], buffer[1024] = "--- STATEMENT ---\n";
+            // Simple: Just read and append lines , overflow can occur
+            while(fgets(line, sizeof(line), fp)) {
+                if(strlen(buffer) + strlen(line) < 1020) strcat(buffer, line);
+            }
+            strcpy(response.data, buffer);
+            fclose(fp);
+        }
+    }
+    response.type = MSG_SUCCESS;
     send(client_sock, &response, sizeof(response), 0);
 }
 
 // --- HANDLER: Transactions (Deposit/Withdraw) ---
+// Handles: Customer doing own transaction OR Admin doing it for them
 void handle_transaction(int client_sock, Message msg) {
-    Message response;
-    memset(&response, 0, sizeof(response));
-
-    int current_bal = get_current_balance(msg.username);
+    Message response = {0};
     
+    // DECISION: If Admin, target the other user. If Customer, target self.
+    char *target = (msg.role == 'C') ? msg.username : msg.target_username;
+    
+    int current_bal = get_current_balance(target);
     if (current_bal == -1) {
-        response.type = MSG_ERROR;
-        strcpy(response.data, "Account file error.");
+        strcpy(response.data, "User file not found.");
         send(client_sock, &response, sizeof(response), 0);
         return;
     }
@@ -207,108 +164,88 @@ void handle_transaction(int client_sock, Message msg) {
 
     if (msg.type == MSG_DEPOSIT) {
         new_bal += msg.amount;
-        strcpy(trans_type, "Deposit");
+        strcpy(trans_type, "Credit");
     } else if (msg.type == MSG_WITHDRAW) {
         if (current_bal < msg.amount) {
-            response.type = MSG_ERROR;
             strcpy(response.data, "Insufficient Funds.");
             send(client_sock, &response, sizeof(response), 0);
             return;
         }
         new_bal -= msg.amount;
-        strcpy(trans_type, "Withdrawal");
+        strcpy(trans_type, "Debit");
     }
 
-    // Append transaction to file
+    // Update File
     char filename[100];
-    sprintf(filename, "database/customers/%s.txt", msg.username);
+    sprintf(filename, "database/customers/%s.txt", target);
+
+    // sprintf is used because filename is in my ram, so I want to store this string in it for that i have to use
+    // sprintf for file fprintf could be used and for terminal printf
+
     FILE *fp = fopen(filename, "a");
     fprintf(fp, "%s %d %d\n", trans_type, msg.amount, new_bal);
     fclose(fp);
 
-    response.type = MSG_SUCCESS;
-    sprintf(response.data, "Transaction Complete. New Balance: %d", new_bal);
+    sprintf(response.data, "Success! New Balance: %d", new_bal);
     
-    // Log it
-    char log_msg[100];
-    sprintf(log_msg, "User %s %s amount %d. New Bal: %d", msg.username, trans_type, msg.amount, new_bal);
-    write_log(log_msg);
-
+    char log[100]; sprintf(log, "%s performed %s on %s", msg.username, trans_type, target);
+    write_log(log);
+    
     send(client_sock, &response, sizeof(response), 0);
 }
 
-// --- MAIN LOOP ---
 void process_client(int client_sock) {
-    Message msg;
-    while (recv(client_sock, &msg, sizeof(msg), 0) > 0) {
-        printf("[DEBUG] Received Request Type: %d from %s\n", msg.type, msg.username);
+    Message msg;    // empty container, will be filled with data sent by client
 
+    while (recv(client_sock, &msg, sizeof(msg), 0) > 0) {   // this command pause the connection and wait for client to send data
+       // when data arrives it filles the msg container, >0 means success, we have recieved some data
+        printf("[SERVER] Received Request Type: %d from User: %s\n", msg.type, msg.username);
         switch (msg.type) {
-            case MSG_REGISTER:
-                handle_register(client_sock, msg);
-                break;
-            case MSG_LOGIN:
-                handle_login(client_sock, msg);
-                break;
-            case MSG_DEPOSIT:
-            case MSG_WITHDRAW:
-                handle_transaction(client_sock, msg);
-                break;
-            
-            // --- DID YOU MISS THESE LINES? ---
+            case MSG_REGISTER: handle_register(client_sock, msg); break;
+            case MSG_LOGIN:    handle_login(client_sock, msg); break;
+            case MSG_DEPOSIT:   // see how switch works, the next one will be executed called FallThrough
+            case MSG_WITHDRAW: handle_transaction(client_sock, msg); break;
             case MSG_BALANCE:
-                handle_balance(client_sock, msg);
-                break;
-            case MSG_MINI_STATEMENT:
-                handle_mini_statement(client_sock, msg);
-                break;
-            // ---------------------------------
-
-            default:
-                printf("[DEBUG] Unknown Request Type: %d\n", msg.type);
-                break;
+            case MSG_MINI_STATEMENT: handle_info(client_sock, msg); break;
         }
     }
     close(client_sock);
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 2) {
-        printf("Usage: %s <port>\n", argv[0]);
-        exit(1);
-    }
+    // When you type ./server 8080 the OS breaks it into parts, argc contains how many items = 2, and
+    // argv contains argv[0] = server, argv[1] = 8080
+
+    if (argc != 2) exit(1);
     int port = atoi(argv[1]);
-    int server_sock, client_sock;
-    struct sockaddr_in server_addr, client_addr;
-    socklen_t addr_size;
+    int server_sock = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in addr = {0};  // create struct and set every byte to zero
+    // It tells the OS to reserve some memory for IPv4 addresses
+    
+    addr.sin_family = AF_INET;  // it is address type, like here I am using IPv4
+    addr.sin_port = htons(port);    // this is to convert everything to BigEndian as 
+    addr.sin_addr.s_addr = INADDR_ANY;  // INADDR_ANY means it works on both wifi or ethernet
 
-    server_sock = socket(AF_INET, SOCK_STREAM, 0);
-    // Enable address reuse to avoid "Address already in use" errors
-    int opt = 1;
-    setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(port);
-    server_addr.sin_addr.s_addr = INADDR_ANY;
-
-    bind(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
+    bind(server_sock, (struct sockaddr*)&addr, sizeof(addr));
     listen(server_sock, 5);
+    write_log("Server Started");
+    printf("Server listening on %d...\n", port);
 
-    printf("Server listening on port %d...\n", port);
-    write_log("Server Started.");
 
+    // This loop allows server to handle multiple clients at one, without this only one client could access
+    // and others have to wait for him to finish
     while (1) {
-        addr_size = sizeof(client_addr);
-        client_sock = accept(server_sock, (struct sockaddr*)&client_addr, &addr_size);
-        if (client_sock < 0) continue;
-        
-        // Handle client in a loop
-        if (fork() == 0) { // Child process
-            close(server_sock);
-            process_client(client_sock);
-            exit(0);
+        int client_sock = accept(server_sock, NULL, NULL); // accepting the connection, NULL means idc about IP just give me connection
+        if (fork() == 0) {// for child
+            // because of this you suddenly have 2 programs running from same line 
+            // a copy of server is created just for this user
+            close(server_sock);     // i dont need to listen for new clients
+            process_client(client_sock);    // serve this user until they finish    
+            exit(0);    // dies
         }
-        close(client_sock); // Parent closes client socket
+        close(client_sock); // back to the parent, If I dont close it then my server will run out of FD after some
+        // time and it will crash
+        
     }
     return 0;
 }
