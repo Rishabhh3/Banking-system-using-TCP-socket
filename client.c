@@ -36,24 +36,64 @@ void customer_menu(char *username) {
     }
 }
 
-void admin_menu(char *username) {
+// client.c
+
+// Change from (int sock) to (char *username)
+void admin_menu(char *username) {  
     int choice;
-    while (1) {
-        Message msg = {0};
+    Message msg = {0}; // Initialize empty
+    
+    // Copy the username so the server knows who is asking
+    strcpy(msg.username, username);
+    msg.role = 'A'; 
+    
+    while(1) {
+        printf("\n--- ADMIN MENU ---\n");
+        printf("1. Add User\n2. Delete User\n3. Credit\n4. Debit\n5. Check Balance\n6. Exit\nChoice: ");
+        scanf("%d", &choice);
+
+        if (choice == 6) break;
+
+        // Reset message for new request, but keep identity
+        memset(&msg, 0, sizeof(msg));
         strcpy(msg.username, username);
         msg.role = 'A';
 
-        printf("\n--- ADMIN MENU ---\n1. Credit User\n2. Debit User\n3. Logout\nChoice: ");
-        scanf("%d", &choice);
-        if (choice == 3) break;
+        switch(choice) {
+            case 1: // Add User
+                msg.type = MSG_REGISTER;
+                printf("New Username: "); scanf("%s", msg.username); // Be careful! This overwrites msg.username. 
+                // CRITICAL NOTE below on this logic
+                printf("Password: "); scanf("%s", msg.password);
+                printf("Role (C/P/A): "); scanf(" %c", &msg.role);
+                if(msg.role == 'C') { printf("Amount: "); scanf("%d", &msg.amount); }
+                break;
 
-        printf("Enter Customer Username: ");
-        scanf("%s", msg.target_username);
-        printf("Amount: ");
-        scanf("%d", &msg.amount);
+            case 2: // Delete User
+                msg.type = MSG_DELETE_USER;
+                printf("User to delete: "); scanf("%s", msg.target_username);
+                break;
+            
+            case 3: // Credit
+                msg.type = MSG_DEPOSIT;
+                printf("User to credit: "); scanf("%s", msg.target_username);
+                printf("Amount: "); scanf("%d", &msg.amount);
+                break;
 
-        msg.type = (choice == 1) ? MSG_DEPOSIT : MSG_WITHDRAW;
-        send_request(msg);
+            case 4: // Debit
+                msg.type = MSG_WITHDRAW;
+                printf("User to debit: "); scanf("%s", msg.target_username);
+                printf("Amount: "); scanf("%d", &msg.amount);
+                break;
+
+            case 5: // Balance
+                msg.type = MSG_BALANCE;
+                printf("User to check: "); scanf("%s", msg.target_username);
+                break;
+        }
+
+        // USE YOUR HELPER FUNCTION HERE
+        send_request(msg); 
     }
 }
 

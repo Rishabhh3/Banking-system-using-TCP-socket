@@ -10,6 +10,7 @@
 #define MSG_MINI_STATEMENT 6
 #define MSG_ERROR    -1
 #define MSG_SUCCESS  100
+#define MSG_DELETE_USER 101
 
 typedef struct {
     int type;           
@@ -19,6 +20,7 @@ typedef struct {
     int amount;         
     char data[1024];         // Large buffer for Mini Statements
     char target_username[50]; // NEW: For Admin to target specific users
+
 } Message;
 
 #endif

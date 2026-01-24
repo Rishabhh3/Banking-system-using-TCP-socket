@@ -17,6 +17,14 @@
 // sprintf = string variable, otherwise char abc[10] = "asdsf", but i want to store it as string so use
 // sprintf, it will store the string in the variable you give it
 
+//  I cannot simply "delete" a line from a text file.
+// The Strategy:
+//     Open the original file (login.txt) for Reading.
+//     Open a temporary file (temp.txt) for Writing.
+//     Copy every line from Original to Temp EXCEPT the one we want to delete.
+//     Delete Original.
+//     Rename Temp to Original.
+
 // --- HELPER: Get Balance ---
 int get_current_balance(char *username) {
     char filename[100];
@@ -194,6 +202,59 @@ void handle_transaction(int client_sock, Message msg) {
     send(client_sock, &response, sizeof(response), 0);
 }
 
+void handle_delete_user(int client_sock, Message msg) {
+    Message response = {0};
+    
+    // Security Check: Only Admins can delete
+    if (msg.role != 'A') {
+        strcpy(response.data, "Error: Unauthorized.");
+        send(client_sock, &response, sizeof(response), 0);
+        return;
+    }
+
+    FILE *fp = fopen("database/login.txt", "r");
+    FILE *temp = fopen("database/temp.txt", "w");
+    
+    char u[50], p[50], r;
+    int found = 0;
+
+    if (!fp || !temp) {
+        strcpy(response.data, "System Error: Database missing.");
+        // Close files if they opened
+        if(fp) fclose(fp); if(temp) fclose(temp);
+    } else {
+        // Copy Loop
+        while (fscanf(fp, "%s %s %c", u, p, &r) != EOF) {
+            // If this is the target, SKIP IT (don't write to temp)
+            if (strcmp(u, msg.target_username) == 0) {
+                found = 1;
+            } else {
+                // If not target, copy to temp
+                fprintf(temp, "%s %s %c\n", u, p, r);
+            }
+        }
+        fclose(fp);
+        fclose(temp);
+
+        if (found) {
+            remove("database/login.txt");       // Delete old
+            rename("database/temp.txt", "database/login.txt"); // Rename new
+            
+            // Optional: Also delete their transaction history file
+            char history_file[100];
+            sprintf(history_file, "database/customers/%s.txt", msg.target_username);
+            remove(history_file);
+
+            strcpy(response.data, "User Deleted Successfully.");
+            write_log("Admin deleted a user.");
+        } else {
+            remove("database/temp.txt"); // Delete temp if we didn't use it
+            strcpy(response.data, "Error: User not found.");
+        }
+    }
+    send(client_sock, &response, sizeof(response), 0);
+}
+
 void process_client(int client_sock) {
     Message msg;    // empty container, will be filled with data sent by client
 
@@ -207,6 +268,7 @@ void process_client(int client_sock) {
             case MSG_WITHDRAW: handle_transaction(client_sock, msg); break;
             case MSG_BALANCE:
             case MSG_MINI_STATEMENT: handle_info(client_sock, msg); break;
+            case MSG_DELETE_USER: handle_delete_user(client_sock, msg); break;
         }
     }
     close(client_sock);
