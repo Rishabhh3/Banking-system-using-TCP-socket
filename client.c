@@ -99,19 +99,46 @@ void admin_menu(char *username) {
 
 void police_menu(char *username) {
     int choice;
-    while (1) {
-        Message msg = {0};
-        strcpy(msg.username, username);
-        msg.role = 'P';
+    Message msg = {0};
+    
+    // Set identity
+    strcpy(msg.username, username);
+    msg.role = 'P'; 
 
-        printf("\n--- POLICE MENU ---\n1. Check User Balance\n2. Check User Statement\n3. Logout\nChoice: ");
+    while (1) {
+        printf("\n--- POLICE INTERFACE ---\n");
+        printf("1. Check User Balance\n");
+        printf("2. View User Mini Statement\n");
+        printf("3. Logout\n");
+        printf("Choice: ");
         scanf("%d", &choice);
+
         if (choice == 3) break;
 
-        printf("Enter Customer Username to Inspect: ");
-        scanf("%s", msg.target_username);
+        // Clean slate for new request
+        memset(&msg, 0, sizeof(msg));
+        strcpy(msg.username, username);
+        msg.role = 'P'; // "This request is coming from the Police"
 
-        msg.type = (choice == 1) ? MSG_BALANCE : MSG_MINI_STATEMENT;
+        switch(choice) {
+            case 1: // Balance
+                msg.type = MSG_BALANCE;
+                printf("Enter Customer Username to inspect: ");
+                scanf("%s", msg.target_username);
+                break;
+
+            case 2: // Statement
+                msg.type = MSG_MINI_STATEMENT;
+                printf("Enter Customer Username to inspect: ");
+                scanf("%s", msg.target_username);
+                break;
+
+            default:
+                printf("Invalid choice.\n");
+                continue; // Skip the send_request part
+        }
+
+        // Send to server
         send_request(msg);
     }
 }
