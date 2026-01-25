@@ -11,6 +11,7 @@
 #define MSG_ERROR    -1
 #define MSG_SUCCESS  100
 #define MSG_DELETE_USER 101
+#define MSG_ADMIN_REGISTER 0
 
 typedef struct {
     int type;           

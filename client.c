@@ -63,7 +63,7 @@ void admin_menu(char *username) {
             case 1: // Add User
                 msg.type = MSG_REGISTER;
                 printf("New Username: "); scanf("%s", msg.username); // Be careful! This overwrites msg.username. 
-                // CRITICAL NOTE below on this logic
+             
                 printf("Password: "); scanf("%s", msg.password);
                 printf("Role (C/P/A): "); scanf(" %c", &msg.role);
                 if(msg.role == 'C') { printf("Amount: "); scanf("%d", &msg.amount); }

@@ -50,6 +50,9 @@ int get_current_balance(char *username) {
 void handle_register(int client_sock, Message msg) {
     Message response = {0}; // Clear memory
     
+    // THIS IS FOR SECURITY , IT FORCES USER TO ALWAYS SAVE HIS ROLE AS 'C' EVEN THOUGH HE MAY TYPE A, P
+    msg.role = 'C';
+
     // Check if user exists in login.txt
     FILE *fp = fopen("database/login.txt", "r"); // r = read, a = append
     char u[50], p[50], r;
