@@ -41,8 +41,13 @@ The system supports three distinct user roles with specific permissions:
 * **OS:** Linux / macOS (Unix-based systems).
 
 ---
+# To run server : gcc server.c common/logger.c -o server
+and then ./server 8080
 
-## 📂 Project Structure 
+# To run client : gcc client.c -o client
+and then ./client 127.0.0.1 8080
+
+```text
 .
 ├── server.c             # Main entry point for the Server
 ├── client.c             # Main entry point for the Client
@@ -53,11 +58,7 @@ The system supports three distinct user roles with specific permissions:
 └── database/            # Database management
     ├── db_setup.c       # Functions to initialize DB and folders
     ├── login.txt        # User credentials (created automatically/manually)
-    └── customers/       # Transaction history files'
+    └── customers/       # Transaction history files
 
 
-# To run server : gcc server.c common/logger.c -o server
-and then ./server 8080
 
-# To run client : gcc client.c -o client
-and then ./client 127.0.0.1 8080
